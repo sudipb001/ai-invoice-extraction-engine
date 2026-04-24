@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File
 from pathlib import Path
 import uuid
 
+from app.services.pdf_extractor import extract_text_from_pdf
+
 app = FastAPI(title="AI Invoice Extraction Engine")
 
 UPLOAD_DIR = Path("uploads")
@@ -14,7 +16,6 @@ def home():
 
 @app.post("/upload")
 async def upload_invoice(file: UploadFile = File(...)):
-    
     if not file.filename.lower().endswith(".pdf"):
         return {"error": "Only PDF files allowed"}
 
@@ -30,3 +31,9 @@ async def upload_invoice(file: UploadFile = File(...)):
         "message": "Upload successful",
         "filename": unique_name
     }
+
+
+@app.get("/extract/{filename}")
+def extract_invoice(filename: str):
+    file_path = UPLOAD_DIR / filename
+    return extract_text_from_pdf(str(file_path))

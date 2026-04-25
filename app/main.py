@@ -3,6 +3,7 @@ from pathlib import Path
 import uuid
 
 from app.services.pdf_extractor import extract_text_from_pdf
+from app.services.ai_parser import parse_invoice_text
 
 app = FastAPI(title="AI Invoice Extraction Engine")
 
@@ -19,21 +20,31 @@ async def upload_invoice(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         return {"error": "Only PDF files allowed"}
 
-    unique_name = f"{uuid.uuid4()}_{file.filename}"
-    save_path = UPLOAD_DIR / unique_name
+    filename = f"{uuid.uuid4()}_{file.filename}"
+    path = UPLOAD_DIR / filename
 
     content = await file.read()
 
-    with open(save_path, "wb") as f:
+    with open(path, "wb") as f:
         f.write(content)
 
     return {
-        "message": "Upload successful",
-        "filename": unique_name
+        "success": True,
+        "filename": filename
     }
-
 
 @app.get("/extract/{filename}")
 def extract_invoice(filename: str):
-    file_path = UPLOAD_DIR / filename
-    return extract_text_from_pdf(str(file_path))
+    path = UPLOAD_DIR / filename
+    return extract_text_from_pdf(str(path))
+
+@app.get("/parse/{filename}")
+def parse_invoice(filename: str):
+    path = UPLOAD_DIR / filename
+
+    extracted = extract_text_from_pdf(str(path))
+
+    if not extracted["success"]:
+        return extracted
+
+    return parse_invoice_text(extracted["text"])

@@ -48,8 +48,9 @@ def extract_text_from_pdf(file_path: str) -> dict:
             "text": full_text
         }
 
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
-            "error": str(e)
+            "error": "Unable to read PDF file."
         }
+

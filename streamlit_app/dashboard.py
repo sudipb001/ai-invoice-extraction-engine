@@ -1,5 +1,7 @@
 import streamlit as st
 import uuid
+from pathlib import Path
+import requests
 
 from app.config import UPLOAD_DIR, MAX_FILE_SIZE_MB
 from app.services.pdf_extractor import extract_text_from_pdf
@@ -72,3 +74,32 @@ if st.session_state.saved_file:
     if st.button("Reset"):
         st.session_state.saved_file = None
         st.rerun()
+
+
+st.divider()
+st.subheader("Export")
+
+export_format = st.selectbox("Format", ["excel", "csv"])
+
+if st.button("Export Invoice"):
+
+    if st.session_state.saved_file:
+        filename = Path(st.session_state.saved_file).name
+
+        response = requests.get(
+            f"http://127.0.0.1:8000/export/{filename}",
+            params={"format": export_format}
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            file_path = data["path"]
+
+            with open(file_path, "rb") as f:
+                st.download_button(
+                    label="Download File",
+                    data=f,
+                    file_name=data["file"]
+                )
+        else:
+            st.error("Export failed.")

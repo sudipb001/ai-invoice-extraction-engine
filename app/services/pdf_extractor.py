@@ -1,5 +1,6 @@
 import pdfplumber
 from pathlib import Path
+from app.services.ocr_extractor import extract_text_with_ocr
 
 
 def clean_text(text: str) -> str:
@@ -36,17 +37,31 @@ def extract_text_from_pdf(file_path: str) -> dict:
         full_text = clean_text(full_text)
 
         if not full_text:
+
+            ocr_text = extract_text_with_ocr(str(path))
+
+            if ocr_text:
+                return {
+                    "success": True,
+                    "pages": total_pages,
+                    "text": clean_text(ocr_text),
+                    "ocr_used": True
+                }
+
             return {
                 "success": False,
-                "error": "No readable text found. PDF may be scanned or blank.",
+                "error": "No readable text found.",
                 "pages": total_pages
             }
+
 
         return {
             "success": True,
             "pages": total_pages,
-            "text": full_text
+            "text": full_text,
+            "ocr_used": False
         }
+
 
     except Exception:
         return {

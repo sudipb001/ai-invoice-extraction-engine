@@ -7,6 +7,7 @@ from openai import OpenAI
 
 from app.models.invoice import InvoiceData
 from app.config import OPENAI_TIMEOUT_SECONDS, OPENAI_MAX_RETRIES
+from app.services.currency_normalizer import normalize_currency
 
 load_dotenv()
 
@@ -78,11 +79,15 @@ Invoice Text:
             data = json.loads(content)
 
             validated = InvoiceData(**data)
+            result = validated.model_dump()
+
+            result["currency"] = normalize_currency(result.get("currency"))
 
             return {
                 "success": True,
-                "data": validated.model_dump()
+                "data": result
             }
+
 
         except Exception:
             if attempt < OPENAI_MAX_RETRIES:

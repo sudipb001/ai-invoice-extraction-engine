@@ -15,3 +15,8 @@ OPENAI_MAX_RETRIES = 2
 
 MAX_BATCH_SIZE = 50
 BATCH_INTER_FILE_DELAY = 1  # seconds between AI calls
+
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
+
+PROCESSED_INVOICES_FILE = DATA_DIR / "processed_invoices.json"

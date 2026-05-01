@@ -45,6 +45,11 @@ if "batch_results" not in st.session_state:
 if "batch_export_path" not in st.session_state:
     st.session_state.batch_export_path = None
 
+if "ocr_used" not in st.session_state:
+    st.session_state.ocr_used = None
+
+if "is_duplicate" not in st.session_state:
+    st.session_state.is_duplicate = None
 
 # ---------------------------------------
 # LOAD HISTORY DATA
@@ -143,7 +148,10 @@ with tab1:
 
         if result["success"]:
             st.session_state.extracted_text = result["text"]
+            st.session_state.ocr_used = result.get("ocr_used", False)
             st.success("Text extracted successfully.")
+            if st.session_state.get("ocr_used"):
+                st.info("OCR was used (scanned PDF detected).")
         else:
             st.error(result["error"])
 
@@ -178,7 +186,10 @@ with tab1:
 
         if parsed["success"]:
             st.session_state.parsed_data = parsed["data"]
+            st.session_state.is_duplicate = parsed.get("duplicate", False)
             st.success("Invoice parsed successfully.")
+            if st.session_state.get("is_duplicate"):
+                st.warning("Duplicate invoice detected.")
         else:
             st.error(parsed["error"])
 
@@ -243,6 +254,8 @@ with tab1:
         st.session_state.extracted_text = None
         st.session_state.parsed_data = None
         st.session_state.export_file_path = None
+        st.session_state.ocr_used = None
+        st.session_state.is_duplicate = None
         st.rerun()
 
 

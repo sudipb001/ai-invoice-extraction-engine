@@ -34,4 +34,16 @@ def parse_invoice(filename: str):
             detail=parsed["error"]
         )
 
-    return parsed
+    data = parsed["data"]
+
+    duplicate = is_duplicate(data)
+
+    if not duplicate:
+        register_invoice(data)
+
+    return {
+        "success": True,
+        "data": data,
+        "duplicate": duplicate
+    }
+

@@ -4,7 +4,7 @@ import requests
 from pathlib import Path
 
 
-from app.config import UPLOAD_DIR, MAX_FILE_SIZE_MB
+from app.config import UPLOAD_DIR, MAX_FILE_SIZE_MB, MAX_BATCH_SIZE, BATCH_INTER_FILE_DELAY
 from app.services.pdf_extractor import extract_text_from_pdf
 from app.services.ai_parser import parse_invoice_text
 
@@ -38,6 +38,12 @@ if "parsed_data" not in st.session_state:
 
 if "export_file_path" not in st.session_state:
     st.session_state.export_file_path = None
+
+if "batch_results" not in st.session_state:
+    st.session_state.batch_results = []
+
+if "batch_export_path" not in st.session_state:
+    st.session_state.batch_export_path = None
 
 
 # ---------------------------------------
@@ -80,7 +86,7 @@ st.divider()
 # ---------------------------------------
 # TABS
 # ---------------------------------------
-tab1, tab2 = st.tabs(["Process Invoice", "History"])
+tab1, tab2, tab3 = st.tabs(["Process Invoice", "Batch Processing", "History"])
 
 
 # =======================================
@@ -241,9 +247,171 @@ with tab1:
 
 
 # =======================================
-# TAB 2 — HISTORY
+# TAB 2 — BATCH PROCESSING
 # =======================================
 with tab2:
+
+    st.subheader("Batch Invoice Processing")
+
+    uploaded_files = st.file_uploader(
+        "Upload Multiple Invoice PDFs",
+        type=["pdf"],
+        accept_multiple_files=True
+    )
+
+    if uploaded_files:
+
+        if len(uploaded_files) > MAX_BATCH_SIZE:
+            st.error(f"Maximum {MAX_BATCH_SIZE} files allowed.")
+        else:
+
+            if st.button("Start Batch Processing"):
+
+                st.session_state.batch_results = []
+
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                total_files = len(uploaded_files)
+
+                for i, file in enumerate(uploaded_files):
+
+                    status_text.text(f"Processing {i+1}/{total_files}: {file.name}")
+
+                    try:
+                        # Save file
+                        filename = f"{uuid.uuid4()}_{file.name}"
+                        path = UPLOAD_DIR / filename
+
+                        with open(path, "wb") as f:
+                            f.write(file.getbuffer())
+
+                        # Extract text
+                        extracted = extract_text_from_pdf(str(path))
+
+                        if not extracted["success"]:
+                            st.session_state.batch_results.append({
+                                "filename": file.name,
+                                "success": False,
+                                "error": extracted["error"]
+                            })
+                            continue
+
+                        # Parse invoice
+                        parsed = parse_invoice_text(extracted["text"])
+
+                        if not parsed["success"]:
+                            st.session_state.batch_results.append({
+                                "filename": file.name,
+                                "success": False,
+                                "error": parsed["error"]
+                            })
+                            continue
+
+                        # Success case
+                        st.session_state.batch_results.append({
+                            "filename": file.name,
+                            "success": True,
+                            "data": parsed["data"]
+                        })
+
+                    except Exception as e:
+                        st.session_state.batch_results.append({
+                            "filename": file.name,
+                            "success": False,
+                            "error": str(e)
+                        })
+
+                    # Progress update
+                    progress_bar.progress((i + 1) / total_files)
+
+                    # Rate limit protection
+                    import time
+                    time.sleep(BATCH_INTER_FILE_DELAY)
+
+                status_text.text("Batch processing completed.")
+                st.success("Batch processing finished.")
+
+    # ===================================
+    # RESULTS TABLE
+    # ===================================
+    if st.session_state.batch_results:
+
+        st.subheader("Batch Results")
+
+        results_display = []
+
+        for item in st.session_state.batch_results:
+            results_display.append({
+                "File": item["filename"],
+                "Status": "Success" if item["success"] else "Failed",
+                "Error": item.get("error", "")
+            })
+
+        st.table(results_display)
+
+        # ===================================
+        # EXPORT SECTION
+        # ===================================
+        success_data = [
+            item["data"]
+            for item in st.session_state.batch_results
+            if item["success"]
+        ]
+
+        if success_data:
+
+            from app.services.export_service import (
+                build_dataframe,
+                export_excel,
+                export_csv,
+                generate_filename
+            )
+
+            export_format = st.selectbox(
+                "Export Format",
+                ["excel", "csv"],
+                key="batch_export_format"
+            )
+
+            if st.button("Export Batch Report"):
+
+                df = build_dataframe(success_data)
+
+                if export_format == "excel":
+                    filename = generate_filename("batch", "xlsx")
+                    file_path = export_excel(df, filename)
+                else:
+                    filename = generate_filename("batch", "csv")
+                    file_path = export_csv(df, filename)
+
+                st.session_state.batch_export_path = str(file_path)
+
+                st.success("Batch export created.")
+
+        # Download button
+        if st.session_state.batch_export_path:
+            with open(st.session_state.batch_export_path, "rb") as f:
+                st.download_button(
+                    label="Download Batch File",
+                    data=f,
+                    file_name=Path(st.session_state.batch_export_path).name
+                )
+
+        # ===================================
+        # RESET BUTTON
+        # ===================================
+        if st.button("Reset Batch"):
+            st.session_state.batch_results = []
+            st.session_state.batch_export_path = None
+            st.rerun()
+
+
+
+# =======================================
+# TAB 3 — HISTORY
+# =======================================
+with tab3:
 
 
     st.subheader("System History")

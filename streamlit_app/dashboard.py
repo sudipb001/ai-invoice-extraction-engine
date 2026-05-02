@@ -7,6 +7,13 @@ from pathlib import Path
 from app.config import UPLOAD_DIR, MAX_FILE_SIZE_MB, MAX_BATCH_SIZE, BATCH_INTER_FILE_DELAY
 from app.services.pdf_extractor import extract_text_from_pdf
 from app.services.ai_parser import parse_invoice_text
+from app.services.export_service import (
+    build_dataframe,
+    export_excel,
+    export_csv,
+    generate_filename
+)
+
 
 
 API_BASE = "http://127.0.0.1:8000"
@@ -210,27 +217,59 @@ with tab1:
 
     export_format = st.selectbox("Format", ["excel", "csv"])
 
+    if st.button("Export Invoice"):
 
-    if st.button(
-        "Export Invoice",
-        disabled=not st.session_state.parsed_data
-    ):
-        filename = Path(st.session_state.saved_file).name
+        if st.session_state.parsed_data:
+
+            try:
+                data = st.session_state.parsed_data
+
+                # Prevent empty export
+                if not any([
+                    data.get("invoice_number"),
+                    data.get("vendor_name"),
+                    data.get("total_amount")
+                ]):
+                    st.warning("Parsed data is empty. Cannot export.")
+                    st.stop()
+
+                df = build_dataframe([data])
+
+                if export_format == "excel":
+                    filename = generate_filename("invoice", "xlsx")
+                    file_path = export_excel(df, filename)
+                else:
+                    filename = generate_filename("invoice", "csv")
+                    file_path = export_csv(df, filename)
+
+                st.session_state.export_file_path = str(file_path)
+
+                st.success("Export generated successfully.")
+
+            except Exception as e:
+                st.error(f"Export failed: {str(e)}")
 
 
-        with st.spinner("Generating export file..."):
-            response = requests.get(
-                f"{API_BASE}/export/{filename}",
-                params={"format": export_format}
-            )
+    # if st.button(
+    #     "Export Invoice",
+    #     disabled=not st.session_state.parsed_data
+    # ):
+    #     filename = Path(st.session_state.saved_file).name
 
 
-        if response.status_code == 200:
-            data = response.json()
-            st.session_state.export_file_path = data["path"]
-            st.success("Export generated successfully.")
-        else:
-            st.error("Export failed.")
+    #     # with st.spinner("Generating export file..."):
+    #     #     response = requests.get(
+    #     #         f"{API_BASE}/export/{filename}",
+    #     #         params={"format": export_format}
+    #     #     )
+
+
+    #     if response.status_code == 200:
+    #         data = response.json()
+    #         st.session_state.export_file_path = data["path"]
+    #         st.success("Export generated successfully.")
+    #     else:
+    #         st.error("Export failed.")
 
 
     if st.session_state.export_file_path:
